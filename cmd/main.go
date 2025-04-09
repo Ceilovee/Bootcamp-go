@@ -3,7 +3,7 @@ package main
 import (
 	"net/http"
 
-	"github.com/Ceilovee/Bootcamp-go/cmd/server/handler"
+	"github.com/Ceilovee/Bootcamp-go/internal/product/server"
 	"github.com/Ceilovee/Bootcamp-go/internal/product/servise"
 	"github.com/Ceilovee/Bootcamp-go/internal/product/storage"
 	"github.com/go-chi/chi"
@@ -12,18 +12,18 @@ import (
 func main() {
 	st := storage.StorageInMemory()
 	sv := servise.NewServiceDefault(st)
-	hd := handler.NewHandlerDefault(sv)
+	hd := server.NewHandlerDefault(sv)
 	// server and run
 	raiseServer(hd)
 }
 
-func raiseServer(hd *handler.HandlerDefault) {
+func raiseServer(hd *server.HandlerDefault) {
 	r := chi.NewRouter()
 
 	r.Get("/ping", hd.HandlerPong())
 	r.Route("/products", func(f chi.Router) {
-		r.Get("", hd.HandlerGetProducts())
-		r.Post("", hd.HandlerCreateProduct())
+		f.Get("/", hd.HandlerGetProducts())
+		f.Post("/", hd.HandlerCreateProduct())
 	})
 	r.Get("/products/{id}", hd.HandlerGetProductByID())
 	r.Get("/products/search", hd.HandlerSearchProducts())
