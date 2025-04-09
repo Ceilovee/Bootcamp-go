@@ -2,7 +2,6 @@ package servise
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -11,13 +10,13 @@ import (
 )
 
 type ServiceDefault struct {
-	p *storage.ProductsController
+	P *storage.ProductsController
 }
 
 type ResponseBodyProduct struct {
 	Message string           `json:"message"`
 	Data    *storage.Product `json:"data"`
-	Error   error            `json:"error"`
+	Error   string           `json:"error"`
 }
 
 type RequestBodyProduct struct {
@@ -30,7 +29,7 @@ type RequestBodyProduct struct {
 }
 
 func NewServiceDefault(p *storage.ProductsController) *ServiceDefault {
-	return &ServiceDefault{p: p}
+	return &ServiceDefault{P: p}
 }
 
 func (sv *ServiceDefault) HandlerPong() http.HandlerFunc {
@@ -43,7 +42,7 @@ func (sv *ServiceDefault) HandlerPong() http.HandlerFunc {
 func (sv *ServiceDefault) HandlerGetProducts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(sv.p.Prod); err != nil {
+		if err := json.NewEncoder(w).Encode(sv.P.Prod); err != nil {
 			http.Error(w, "Error encoding response", http.StatusInternalServerError)
 		}
 	}
@@ -54,11 +53,11 @@ func (sv *ServiceDefault) HandlerGetProductByID() http.HandlerFunc {
 		var prod storage.Product
 		id := chi.URLParam(r, "id")
 		id_int, err := strconv.Atoi(id)
-		if err != nil && id_int <= sv.p.N {
+		if err != nil && id_int <= sv.P.N {
 			http.Error(w, "Invalid id", http.StatusBadRequest)
 			return
 		}
-		for _, product := range sv.p.Prod {
+		for _, product := range sv.P.Prod {
 			if product.ID == id_int {
 				prod = product
 				break // asumo que solo existe un producto con ese id
@@ -80,7 +79,7 @@ func (sv *ServiceDefault) HandlerSearchProducts() http.HandlerFunc {
 			http.Error(w, "Invalid price", http.StatusBadRequest)
 			return
 		}
-		for _, product := range sv.p.Prod {
+		for _, product := range sv.P.Prod {
 			if product.Price > price_float {
 				prods = append(prods, product)
 			}
@@ -94,13 +93,15 @@ func (sv *ServiceDefault) HandlerSearchProducts() http.HandlerFunc {
 
 func (sv *ServiceDefault) HandlerCreateProduct() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		token := w.Header().Get("Token")
+		// token := w.Header().Get("token")
+		// fmt.Println(token)
 
-		if token != "marte" {
-			err := fmt.Errorf("Invalid token, access denied")
-			errorMessage(w, err)
-			return
-		}
+		// if token != "marte" {
+		// 	err := fmt.Errorf("Invalid token, access denied")
+		// 	fmt.Println(err)
+		// 	errorMessage(w, err)
+		// 	return
+		// }
 
 		var rb RequestBodyProduct
 		decoder := json.NewDecoder(r.Body)
@@ -109,7 +110,7 @@ func (sv *ServiceDefault) HandlerCreateProduct() http.HandlerFunc {
 			return
 		}
 
-		pp, err := sv.p.AddProduct(rb.Name, rb.Expiration, rb.CodeValue, rb.IsPublished, rb.Price, rb.Quantity)
+		pp, err := sv.P.AddProduct(rb.Name, rb.Expiration, rb.CodeValue, rb.IsPublished, rb.Price, rb.Quantity)
 
 		if err != nil {
 			errorMessage(w, err)
@@ -121,7 +122,7 @@ func (sv *ServiceDefault) HandlerCreateProduct() http.HandlerFunc {
 		body := ResponseBodyProduct{
 			Message: "Product created successfully",
 			Data:    &pp,
-			Error:   nil,
+			Error:   "",
 		}
 		json.NewEncoder(w).Encode(body)
 	}
@@ -132,7 +133,7 @@ func errorMessage(w http.ResponseWriter, err error) {
 	body := ResponseBodyProduct{
 		Message: "Bad request",
 		Data:    nil,
-		Error:   err,
+		Error:   err.Error(),
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(body)
