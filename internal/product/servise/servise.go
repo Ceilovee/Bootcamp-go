@@ -1,43 +1,64 @@
-package internal
+package servise
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
+	"github.com/Ceilovee/Bootcamp-go/internal/product/storage"
 	"github.com/go-chi/chi"
 )
 
+type ServiceDefault struct {
+	p *storage.ProductsController
+}
+
 type ResponseBodyProduct struct {
-	Message string   `json:"message"`
-	Data    *Product `json:"data"`
-	Error   error    `json:"error"`
+	Message string           `json:"message"`
+	Data    *storage.Product `json:"data"`
+	Error   error            `json:"error"`
 }
 
-func handlerPong(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("pong"))
+type RequestBodyProduct struct {
+	Name        string  `json:"name"`
+	Quantity    int     `json:"quantity"`
+	CodeValue   string  `json:"code_value"`
+	IsPublished bool    `json:"is-published,omitempty"`
+	Expiration  string  `json:"expiration"`
+	Price       float64 `json:"price"`
 }
 
-func (p *ProductsController) handlerGetProducts() http.HandlerFunc {
+func NewServiceDefault(p *storage.ProductsController) *ServiceDefault {
+	return &ServiceDefault{p: p}
+}
+
+func (sv *ServiceDefault) HandlerPong() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("pong"))
+	}
+}
+
+func (sv *ServiceDefault) HandlerGetProducts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(p.Prod); err != nil {
+		if err := json.NewEncoder(w).Encode(sv.p.Prod); err != nil {
 			http.Error(w, "Error encoding response", http.StatusInternalServerError)
 		}
 	}
 }
 
-func (p *ProductsController) handlerGetProductByID() http.HandlerFunc {
+func (sv *ServiceDefault) HandlerGetProductByID() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var prod Product
+		var prod storage.Product
 		id := chi.URLParam(r, "id")
 		id_int, err := strconv.Atoi(id)
-		if err != nil && id_int <= p.n {
+		if err != nil && id_int <= sv.p.N {
 			http.Error(w, "Invalid id", http.StatusBadRequest)
 			return
 		}
-		for _, product := range p.Prod {
+		for _, product := range sv.p.Prod {
 			if product.ID == id_int {
 				prod = product
 				break // asumo que solo existe un producto con ese id
@@ -50,16 +71,16 @@ func (p *ProductsController) handlerGetProductByID() http.HandlerFunc {
 	}
 }
 
-func (p *ProductsController) handlerSearchProducts() http.HandlerFunc {
+func (sv *ServiceDefault) HandlerSearchProducts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		prods := make([]Product, 0)
+		prods := make([]storage.Product, 0)
 		priceGT := r.URL.Query().Get("priceGT")
 		price_float, err := strconv.ParseFloat(priceGT, 64)
 		if err != nil {
 			http.Error(w, "Invalid price", http.StatusBadRequest)
 			return
 		}
-		for _, product := range p.Prod {
+		for _, product := range sv.p.Prod {
 			if product.Price > price_float {
 				prods = append(prods, product)
 			}
@@ -71,19 +92,30 @@ func (p *ProductsController) handlerSearchProducts() http.HandlerFunc {
 	}
 }
 
-func (p *ProductsController) handlerCreateProduct() http.HandlerFunc {
+func (sv *ServiceDefault) HandlerCreateProduct() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var pp Product
+		token := w.Header().Get("Token")
+
+		if token != "marte" {
+			err := fmt.Errorf("Invalid token, access denied")
+			errorMessage(w, err)
+			return
+		}
+
+		var rb RequestBodyProduct
 		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&pp); err != nil {
-			ErrorMessage(w, err)
+		if err := decoder.Decode(&rb); err != nil {
+			errorMessage(w, err)
 			return
 		}
-		err := p.AddProduct(pp)
+
+		pp, err := sv.p.AddProduct(rb.Name, rb.Expiration, rb.CodeValue, rb.IsPublished, rb.Price, rb.Quantity)
+
 		if err != nil {
-			ErrorMessage(w, err)
+			errorMessage(w, err)
 			return
 		}
+
 		w.WriteHeader(http.StatusCreated)
 		w.Header().Set("Content-Type", "application/json")
 		body := ResponseBodyProduct{
@@ -95,7 +127,7 @@ func (p *ProductsController) handlerCreateProduct() http.HandlerFunc {
 	}
 }
 
-func ErrorMessage(w http.ResponseWriter, err error) {
+func errorMessage(w http.ResponseWriter, err error) {
 	w.WriteHeader(http.StatusBadRequest)
 	body := ResponseBodyProduct{
 		Message: "Bad request",

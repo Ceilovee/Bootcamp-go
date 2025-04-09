@@ -1,4 +1,4 @@
-package internal
+package storage
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 
 type ProductsController struct {
 	Prod []Product
-	n    int
+	N    int
 }
 
 type Product struct {
@@ -23,9 +23,17 @@ type Product struct {
 	Price       float64 `json:"price"`
 }
 
-func LoadSliceProducts() (ProductsController, error) {
+func StorageInMemory() *ProductsController {
+	p, err := loadSliceProducts()
+	if err != nil {
+		panic(err)
+	}
+	return &p
+}
+
+func loadSliceProducts() (ProductsController, error) {
 	p := ProductsController{}
-	file, err := os.Open("products.json")
+	file, err := os.Open("Bootcamp-go/docs/db/products.json")
 	if err != nil {
 		return p, fmt.Errorf("error opening file: %v", err)
 	}
@@ -36,7 +44,7 @@ func LoadSliceProducts() (ProductsController, error) {
 		return p, fmt.Errorf("error reading file: %v", err)
 	}
 	json.Unmarshal(([]byte(reader)), &p.Prod)
-	p.n = len(p.Prod)
+	p.N = len(p.Prod)
 	return p, nil
 }
 
@@ -70,19 +78,20 @@ func validDate(date string) bool {
 	return true
 }
 
-func (p *ProductsController) AddProduct(prod Product) error {
-	err := prod.validateProduct()
+func (p *ProductsController) AddProduct(nameRb, expirationRb, codeValueRb string, isPublishedRb bool, priceRb float64, quantityRb int) (Product, error) {
+	pp := Product{Name: nameRb, Price: priceRb, Quantity: quantityRb, Expiration: expirationRb, CodeValue: codeValueRb, IsPublished: isPublishedRb}
+	err := pp.validateProduct()
 	if err != nil {
-		return err
+		return pp, err
 	}
-	err = p.codeInUse(prod.CodeValue)
+	err = p.codeInUse(pp.CodeValue)
 	if err != nil {
-		return err
+		return pp, err
 	}
-	prod.ID = p.n + 1
-	p.Prod = append(p.Prod, prod)
-	p.n++
-	return nil
+	pp.ID = p.N + 1
+	p.Prod = append(p.Prod, pp)
+	p.N++
+	return pp, nil
 }
 
 func (p *ProductsController) codeInUse(code string) error {
